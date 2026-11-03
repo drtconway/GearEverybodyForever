@@ -6,6 +6,13 @@ when an item could be an upgrade for one of them. Port of
 
 > **Work in progress:** the port to Forever isn't finished yet. See [CLAUDE.md](CLAUDE.md).
 
+## Install
+
+In WowUp, choose *Get Addons → Install from URL* and enter
+`https://github.com/drtconway/GearEverybodyForever`. Or download the zip from the
+[releases page](https://github.com/drtconway/GearEverybodyForever/releases) and unzip it into your
+`_forever_\Interface\AddOns` folder.
+
 ## What it does
 
 - **Tracks every character** you log in on: class, level, faction, equipped gear, and the gear in
@@ -68,3 +75,19 @@ Enhancement, Mage Frost, Warlock Shadow, Druid Feral (Cat). Change them per char
 - Swapping a two-hander for a one-hander plus an off-hand isn't judged, since it takes two items.
 - Stat weights are rough, leveling-friendly values in [Data.lua](Data.lua) (`GE.SPECS`). Edit them
   to taste.
+
+## Releasing
+
+Work happens on `dev`; `main` is protected and only changes through pull requests. To release:
+
+1. Open a pull request from `dev` to `main` on GitHub and merge it.
+2. Tag the merged `main`:
+   `git switch main && git pull && git tag -a v0.1.0 -m "GearEverybody Forever 0.1.0" && git push origin v0.1.0`,
+   then `git switch dev` to carry on.
+
+Pushing the tag does the rest:
+- **The workflow:** `.github/workflows/release.yml` runs the BigWigs packager.
+- **The zip:** the packager builds `GearEverybodyForever-<tag>.zip`, leaving out what `.pkgmeta`
+  lists and any dotfiles.
+- **The version:** it replaces `@project-version@` in the `.toc` with the tag.
+- **The release:** it publishes a GitHub release with the zip and a `release.json` for WowUp.

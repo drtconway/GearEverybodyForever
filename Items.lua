@@ -5,17 +5,26 @@ local GetItemInfoInstant = C_Item and C_Item.GetItemInfoInstant or GetItemInfoIn
 local GetItemStats = C_Item and C_Item.GetItemStats or GetItemStats
 
 -- Bump whenever parsing changes so cached item stats get rebuilt.
-GE.PARSER_VERSION = 1
+GE.PARSER_VERSION = 2
 
--- GetItemStats keys we trust. Everything else comes from the tooltip's "Equip:" lines,
--- which keeps us from counting the same bonus twice.
+-- GetItemStats keys (minus any "_SHORT") we trust. Everything else comes from the tooltip's
+-- "Equip:" lines, which keeps us from counting the same bonus twice.
 local BASE_STATS = {
-  ITEM_MOD_STRENGTH_SHORT = "STR",
-  ITEM_MOD_AGILITY_SHORT = "AGI",
-  ITEM_MOD_STAMINA_SHORT = "STA",
-  ITEM_MOD_INTELLECT_SHORT = "INT",
-  ITEM_MOD_SPIRIT_SHORT = "SPI",
+  ITEM_MOD_STRENGTH = "STR",
+  ITEM_MOD_AGILITY = "AGI",
+  ITEM_MOD_STAMINA = "STA",
+  ITEM_MOD_INTELLECT = "INT",
+  ITEM_MOD_SPIRIT = "SPI",
   RESISTANCE0_NAME = "ARMOR",
+}
+
+-- Forever reports these as item stats (Classic Era only has them as "Equip:" text). Each is
+-- used only if the tooltip didn't already give that bonus, so it is never counted twice.
+local SPELL_STATS = {
+  ITEM_MOD_SPELL_DAMAGE_DONE = "SPELLDAMAGE",
+  ITEM_MOD_SPELL_HEALING_DONE = "HEALING",
+  ITEM_MOD_SPELL_PENETRATION = "SPELLPEN",
+  ITEM_MOD_MANA_REGENERATION = "MP5",
 }
 
 local SCHOOLS = {
@@ -71,6 +80,32 @@ end
 
 local scanTip = CreateFrame("GameTooltip", "GearEverybodyScanTooltip", nil, "GameTooltipTemplate")
 
+-- The item's tooltip text, minus the name line.
+local function TooltipLines(itemString)
+  local lines = {}
+  if C_TooltipInfo then
+    local data = C_TooltipInfo.GetHyperlink(itemString)
+    for i, line in ipairs(data and data.lines or {}) do
+      if i > 1 and line.leftText then
+        lines[#lines + 1] = line.leftText
+      end
+    end
+    return lines
+  end
+  scanTip:SetOwner(WorldFrame, "ANCHOR_NONE")
+  scanTip:ClearLines()
+  scanTip:SetHyperlink(itemString)
+  for i = 2, scanTip:NumLines() do
+    local fs = _G["GearEverybodyScanTooltipTextLeft" .. i]
+    local text = fs and fs:GetText()
+    if text then
+      lines[#lines + 1] = text
+    end
+  end
+  scanTip:Hide()
+  return lines
+end
+
 local function Add(stats, key, value)
   if value then
     stats[key] = (stats[key] or 0) + value
@@ -110,30 +145,22 @@ end
 
 -- Reads equip bonuses, shield block and class restrictions from the item's tooltip.
 local function ScanTooltip(itemString, stats)
-  scanTip:SetOwner(WorldFrame, "ANCHOR_NONE")
-  scanTip:ClearLines()
-  scanTip:SetHyperlink(itemString)
   local classes
-  for i = 2, scanTip:NumLines() do
-    local fs = _G["GearEverybodyScanTooltipTextLeft" .. i]
-    local text = fs and fs:GetText()
-    if text then
-      local lower = text:lower()
-      if lower:sub(1, #EQUIP_PREFIX) == EQUIP_PREFIX then
-        ParseEquipLine(lower:sub(#EQUIP_PREFIX + 1), stats)
-      else
-        local block = lower:match(BLOCK_PATTERN)
-        if block then
-          Add(stats, "BLOCKVALUE", tonumber(block))
-        end
-        local allowed = text:match(CLASSES_PATTERN)
-        if allowed then
-          classes = ParseClasses(allowed)
-        end
+  for _, text in ipairs(TooltipLines(itemString)) do
+    local lower = text:lower()
+    if lower:sub(1, #EQUIP_PREFIX) == EQUIP_PREFIX then
+      ParseEquipLine(lower:sub(#EQUIP_PREFIX + 1), stats)
+    else
+      local block = lower:match(BLOCK_PATTERN)
+      if block then
+        Add(stats, "BLOCKVALUE", tonumber(block))
+      end
+      local allowed = text:match(CLASSES_PATTERN)
+      if allowed then
+        classes = ParseClasses(allowed)
       end
     end
   end
-  scanTip:Hide()
   return classes
 end
 
@@ -145,25 +172,34 @@ local function SplitItemString(link)
   return { strsplit(":", str) }
 end
 
--- Cache key: item ID plus random suffix ("of the Bear"); ignores enchants and instance IDs.
+-- Cache key: item ID plus random suffix ("of the Bear") and bonus IDs (which the modern
+-- client can use for suffixes); ignores enchants and instance IDs.
 function GE:ItemKey(link)
   local fields = SplitItemString(link)
   if not fields then
     return nil
   end
+  local key = fields[1]
   local suffix = tonumber(fields[7]) or 0
   if suffix < 0 then
-    return fields[1] .. ":" .. suffix .. ":" .. (tonumber(fields[8]) or 0)
+    key = key .. ":" .. suffix .. ":" .. (tonumber(fields[8]) or 0)
   elseif suffix > 0 then
-    return fields[1] .. ":" .. suffix
+    key = key .. ":" .. suffix
   end
-  return fields[1]
+  local numBonus = tonumber(fields[13]) or 0
+  if numBonus > 0 then
+    key = key .. ":b" .. table.concat(fields, ":", 14, math.min(13 + numBonus, #fields))
+  end
+  return key
 end
 
--- Item string with the enchant stripped, so the tooltip shows the item's own stats.
+-- Item string with the enchant and gems stripped, so the tooltip shows the item's own stats.
 local function ScanString(link)
   local fields = SplitItemString(link)
-  return ("item:%s:0:0:0:0:0:%d:%d"):format(fields[1], tonumber(fields[7]) or 0, tonumber(fields[8]) or 0)
+  for i = 2, 6 do
+    fields[i] = ""
+  end
+  return "item:" .. table.concat(fields, ":")
 end
 
 function GE:IsGear(link)
@@ -190,15 +226,26 @@ function GE:ParseItem(link)
     return nil
   end
 
-  local stats = {}
+  local stats, spellStats = {}, {}
   for statKey, value in pairs(GetItemStats(link) or {}) do
+    statKey = statKey:gsub("_SHORT$", "")
     if BASE_STATS[statKey] then
       Add(stats, BASE_STATS[statKey], value)
-    elseif statKey == "ITEM_MOD_DAMAGE_PER_SECOND_SHORT" then
+    elseif SPELL_STATS[statKey] then
+      spellStats[statKey] = value
+    elseif statKey == "ITEM_MOD_DAMAGE_PER_SECOND" then
       stats.DPS = value
     end
   end
   local classes = ScanTooltip(ScanString(link), stats)
+  for statKey, value in pairs(spellStats) do
+    local stat = SPELL_STATS[statKey]
+    -- SPELLPOWER ("damage and healing") covers both SPELLDAMAGE and HEALING.
+    local covered = stats[stat] or (stats.SPELLPOWER and (stat == "SPELLDAMAGE" or stat == "HEALING"))
+    if not covered then
+      stats[stat] = value
+    end
+  end
 
   return {
     s = stats,

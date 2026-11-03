@@ -1,7 +1,7 @@
 ## Interface: 16001
 ## Title: GearEverybody Forever
 ## Notes: Tracks the gear on all your characters and shows which alts an item could be an upgrade for.
-## Version: 0.1.0
+## Version: @project-version@
 ## SavedVariables: GearEverybodyDB
 ## IconTexture: Interface\Icons\INV_Chest_Chain_05
 

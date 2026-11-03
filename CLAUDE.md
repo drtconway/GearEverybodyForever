@@ -18,6 +18,14 @@ through all bags and banks. See README.md for the feature and command list.
   (`_forever_\Interface\AddOns\Syndicator`, look for `IsForever`). It is not from documentation.
   `Core\Constants.lua`, `Tracking\BagCache.lua` and `Search\CheckItem.lua` (around line 1537) are the useful parts.
 
+## Status
+
+Items 1, 2 and 4 below are coded but not yet checked in game. The bank uses `Enum.BagIndex.CharacterBankTab_1..9`
+(Classic Era layout kept as the fallback). The four spell stats are read from `GetItemStats` (with or without `_SHORT`)
+only when the tooltip didn't give the same bonus. Tooltips are read with `C_TooltipInfo.GetHyperlink` when available.
+`ItemKey` includes bonus IDs in case Forever uses them for random suffixes. `/ge stats` now also prints the raw
+`GetItemStats` keys ("Item API:"). Crit/hit are still tooltip-only. Item 3 is waiting on the user.
+
 ## TODO, in priority order
 
 1. **Bank scanning (will likely error at load).** `Tracker.lua` builds `BANK` from `BANK_CONTAINER`
@@ -53,3 +61,5 @@ Try a spell-damage item, a healing item and a weapon. Visit the bank, then run `
   repo. The two games never load each other's addons, so nothing clashes, and matching names make
   it easier to port fixes in either direction.
 - Git identity is set globally on this machine. Commit or push only when the user asks.
+- Work on `dev`. `main` only changes through pull requests from `dev`, and releases are tags on `main`
+  (see Releasing in README.md).

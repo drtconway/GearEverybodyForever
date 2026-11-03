@@ -18,9 +18,18 @@ for bag = 0, NUM_BAG_SLOTS do
   BAGS[#BAGS + 1] = bag
 end
 
-local BANK = { BANK_CONTAINER }
-for bag = NUM_BAG_SLOTS + 1, NUM_BAG_SLOTS + NUM_BANKBAGSLOTS do
-  BANK[#BANK + 1] = bag
+-- Forever's bank is character bank tabs (unpurchased tabs have 0 slots); Classic Era's is
+-- the bank container plus bank bags.
+local BANK = {}
+if Enum.BagIndex and Enum.BagIndex.CharacterBankTab_1 then
+  for tab = 1, 9 do
+    BANK[#BANK + 1] = Enum.BagIndex["CharacterBankTab_" .. tab]
+  end
+else
+  BANK[1] = BANK_CONTAINER
+  for bag = NUM_BAG_SLOTS + 1, NUM_BAG_SLOTS + NUM_BANKBAGSLOTS do
+    BANK[#BANK + 1] = bag
+  end
 end
 local IS_BANK_BAG = {}
 for _, bag in ipairs(BANK) do
