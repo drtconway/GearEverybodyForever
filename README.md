@@ -86,6 +86,7 @@ Work happens on `dev`; `main` is protected and only changes through pull request
    then `git switch dev` to carry on.
 
 Pushing the tag does the rest:
+
 - **The workflow:** `.github/workflows/release.yml` runs the BigWigs packager.
 - **The zip:** the packager builds `GearEverybodyForever-<tag>.zip`, leaving out what `.pkgmeta`
   lists and any dotfiles.
