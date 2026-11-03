@@ -1,5 +1,7 @@
 local _, GE = ...
 
+local GetItemStats = C_Item and C_Item.GetItemStats or GetItemStats
+
 local window
 
 -- A movable window with a scrolling, hyperlink-aware text area (hover items for tooltips,
@@ -243,6 +245,12 @@ function GE:ShowItemStats(link)
   table.sort(parts)
   self:Print(link, rec.t, "class", rec.c, "subclass", rec.sc, "level", rec.lv)
   self:Print("Stats:", #parts > 0 and table.concat(parts, " ") or "none")
+  local raw = {}
+  for statKey, value in pairs(GetItemStats(link) or {}) do
+    raw[#raw + 1] = statKey .. "=" .. value
+  end
+  table.sort(raw)
+  self:Print("Item API:", #raw > 0 and table.concat(raw, " ") or "none")
   local key = self:ItemKey(link)
   for _, entry in ipairs(self:GetChars()) do
     local c = entry.char
