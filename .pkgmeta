@@ -1,0 +1,6 @@
+# BigWigs packager settings (see .github/workflows/release.yml).
+package-as: GearEverybodyForever
+
+# Only what the game loads goes in the zip (dotfiles such as .luarc.json are always left out).
+ignore:
+  - CLAUDE.md
